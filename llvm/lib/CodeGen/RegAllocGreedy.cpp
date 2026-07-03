@@ -72,6 +72,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <random>
 #include <utility>
 
 using namespace llvm;
@@ -2601,6 +2602,24 @@ void RAGreedy::tryHintsRecoloring() {
   }
 }
 
+AllocationOrder AllocationOrderCreate(Register VirtReg, const VirtRegMap &VRM,
+                                      const RegisterClassInfo &RegClassInfo,
+                                      const LiveRegMatrix *Matrix) {
+  const MachineFunction &MF = VRM.getMachineFunction();
+  const TargetRegisterInfo *TRI = &VRM.getTargetRegInfo();
+  auto Order = RegClassInfo.getOrder(MF.getRegInfo().getRegClass(VirtReg));
+  SmallVector<MCPhysReg, 16> Hints;
+  bool HardHints =
+      TRI->getRegAllocationHints(VirtReg, Order, Hints, MF, &VRM, Matrix);
+
+  outs() << "[Greedy] Order size (" << Order.size() << ")\n";
+  std::shuffle(Hints.begin(), Hints.end(),
+               std::mt19937_64(std::random_device()()));
+  outs() << "[Greedy] Shuffled Hints (" << Hints.size() << ")\n";
+
+  return AllocationOrder(std::move(Hints), Order, HardHints);
+}
+
 MCRegister RAGreedy::selectOrSplitImpl(const LiveInterval &VirtReg,
                                        SmallVectorImpl<Register> &NewVRegs,
                                        SmallVirtRegSet &FixedRegisters,
@@ -2608,8 +2627,9 @@ MCRegister RAGreedy::selectOrSplitImpl(const LiveInterval &VirtReg,
                                        unsigned Depth) {
   uint8_t CostPerUseLimit = uint8_t(~0u);
   // First try assigning a free register.
-  auto Order =
-      AllocationOrder::create(VirtReg.reg(), *VRM, RegClassInfo, Matrix);
+  // auto Order = AllocationOrder::create(VirtReg.reg(), *VRM, RegClassInfo, Matrix);
+  auto Order = AllocationOrderCreate(VirtReg.reg(), *VRM, RegClassInfo, Matrix);
+
   if (MCRegister PhysReg =
           tryAssign(VirtReg, Order, NewVRegs, FixedRegisters)) {
     // When NewVRegs is not empty, we may have made decisions such as evicting

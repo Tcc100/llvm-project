@@ -43,6 +43,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cassert>
+#include <random>
 #include <tuple>
 #include <vector>
 
@@ -974,7 +975,11 @@ void RegAllocFastImpl::allocVirtReg(MachineInstr &MI, LiveReg &LR,
   MCPhysReg BestReg = 0;
   unsigned BestCost = spillImpossible;
   ArrayRef<MCPhysReg> AllocationOrder = RegClassInfo.getOrder(&RC);
-  for (MCPhysReg PhysReg : AllocationOrder) {
+  std::vector<MCPhysReg> AllocationOrderRnd(AllocationOrder);
+  std::shuffle(AllocationOrderRnd.begin(), AllocationOrderRnd.end(),
+              std::mt19937_64(std::random_device()()));
+  outs() << "[Fast] Shuffled registers (" << AllocationOrderRnd.size() << ")\n";
+  for (MCPhysReg PhysReg : AllocationOrderRnd) {
     LLVM_DEBUG(dbgs() << "\tRegister: " << printReg(PhysReg, TRI) << ' ');
     if (isRegUsedInInstr(PhysReg, LookAtPhysRegUses)) {
       LLVM_DEBUG(dbgs() << "already used in instr.\n");
