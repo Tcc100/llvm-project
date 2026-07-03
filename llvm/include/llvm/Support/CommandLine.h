@@ -51,6 +51,20 @@ class StringSaver;
 /// It is intentionally a short name to make qualified usage concise.
 namespace cl {
 
+#ifdef LLVM_X86_BACKEND_PLUGIN
+inline StringRef prefixBackendPluginOption(StringRef Str) {
+  constexpr StringLiteral Prefix("x86backend-plugin-");
+  if (Str.empty())
+    return Str;
+
+  auto *Prefixed = new std::string(Prefix.str());
+  Prefixed->append(Str.data(), Str.size());
+  return StringRef(*Prefixed);
+}
+#else
+inline StringRef prefixBackendPluginOption(StringRef Str) { return Str; }
+#endif
+
 //===----------------------------------------------------------------------===//
 // Command line option processing entry point.
 //
@@ -870,13 +884,15 @@ public:
   ///
   template <class DT>
   void addLiteralOption(StringRef Name, const DT &V, StringRef HelpStr) {
+    StringRef RegisteredName = prefixBackendPluginOption(Name);
 #ifndef NDEBUG
-    if (findOption(Name) != Values.size())
+    if (findOption(Owner.hasArgStr() ? Name : RegisteredName) != Values.size())
       report_fatal_error("Option '" + Name + "' already exists!");
 #endif
-    OptionInfo X(Name, static_cast<DataType>(V), HelpStr);
+    OptionInfo X(Owner.hasArgStr() ? Name : RegisteredName,
+                 static_cast<DataType>(V), HelpStr);
     Values.push_back(X);
-    AddLiteralOption(Owner, Name);
+    AddLiteralOption(Owner, RegisteredName);
   }
 
   /// Remove the specified option.
@@ -1295,17 +1311,17 @@ template <class Mod> struct applicator {
 // Handle const char* as a special case...
 template <unsigned n> struct applicator<char[n]> {
   template <class Opt> static void opt(StringRef Str, Opt &O) {
-    O.setArgStr(Str);
+    O.setArgStr(prefixBackendPluginOption(Str));
   }
 };
 template <unsigned n> struct applicator<const char[n]> {
   template <class Opt> static void opt(StringRef Str, Opt &O) {
-    O.setArgStr(Str);
+    O.setArgStr(prefixBackendPluginOption(Str));
   }
 };
 template <> struct applicator<StringRef > {
   template <class Opt> static void opt(StringRef Str, Opt &O) {
-    O.setArgStr(Str);
+    O.setArgStr(prefixBackendPluginOption(Str));
   }
 };
 

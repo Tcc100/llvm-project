@@ -107,7 +107,9 @@ extern "C" LLVM_C_ABI void LLVMInitializeX86Target() {
   initializeX86DynAllocaExpanderLegacyPass(PR);
   initializeX86SuppressAPXForRelocationLegacyPass(PR);
   initializeX86WinEHUnwindV2Pass(PR);
+#ifndef LLVM_X86_BACKEND_PLUGIN
   initializeX86PreLegalizerCombinerPass(PR);
+#endif
 }
 
 static std::unique_ptr<TargetLoweringObjectFile> createTLOF(const Triple &TT) {
@@ -490,9 +492,11 @@ bool X86PassConfig::addGlobalInstructionSelect() {
 }
 
 void X86PassConfig::addPreLegalizeMachineIR() {
+#ifndef LLVM_X86_BACKEND_PLUGIN
   if (getOptLevel() != CodeGenOptLevel::None) {
     addPass(createX86PreLegalizerCombiner());
   }
+#endif
 }
 
 bool X86PassConfig::addILPOpts() {
